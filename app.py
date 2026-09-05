@@ -1,44 +1,69 @@
 import json
 import os
-from flask import Flask, jsonify, render_template, request
 from huggingface_hub import hf_hub_download
 import numpy as np
+import streamlit as st
 import tensorflow as tf
+from tokenizers import Tokenizer
 
-app = Flask(__name__)
+# إعدادات الصفحة
+st.set_page_config(
+    page_title="مساعد السيرة النبوية", page_icon="📖", layout="centered"
+)
+
+# تخصيص التصميم ليشبه محادثات واتساب (فقاعات وترتيب أسطر متعددة)
+st.markdown(
+    """
+    <style>
+    .stChatMessage {
+        padding: 10px 15px;
+        border-radius: 15px;
+        margin-bottom: 10px;
+        max-width: 85%;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.title("📖 مساعد السيرة النبوية الذكي")
+st.write("اطرح سؤالك وسيجيبك النموذج في محادثة مستمرة ومتعددة الأسطر.")
 
 # ضع هنا اسم مستودعك على هاقينج فيس
 REPO_ID = "your-username/serah-assistant-model"
 
-print("جاري تحميل الملفات من Hugging Face...")
 
-# تحميل ملف المودل والتوكنايزر من Hugging Face
-model_path = hf_hub_download(
-    repo_id=REPO_ID, filename="assistant_code_best.keras"
-)
-tokenizer_path = hf_hub_download(
-    repo_id=REPO_ID, filename="assistant_code_bpe_tokenizer"
-)
+@st.cache_resource
+def load_model_and_tokenizer():
+  with st.spinner("جاري تحميل المودل والتوكنايزر من Hugging Face..."):
+    model_path = hf_hub_download(
+        repo_id=REPO_ID, filename="assistant_code_best.keras"
+    )
+    tokenizer_path = hf_hub_download(
+        repo_id=REPO_ID, filename="assistant_code_bpe_tokenizer"
+    )
 
-# تحميل المودل
-model = tf.keras.models.load_model(model_path)
+    loaded_model = tf.keras.models.load_model(model_path)
+    loaded_tok = Tokenizer.from_file(tokenizer_path)
+  return loaded_model, loaded_tok
 
 
-# استبدل هذا الفئة حسب مكتبة Tokenizer التي تستخدمها (مثل tokenizers من Hugging Face أو الكلاس الخاص بك)
-# إذا كان ملف assistant_code_bpe_tokenizer هو ملف Tokenizer قياسي، يمكنك تحميله هكذا:
-from tokenizers import Tokenizer
+model, tok = load_model_and_tokenizer()
 
-tok = Tokenizer.from_file(tokenizer_path)
-
-# --- استرجاع الثوابت كما في الصورة ---
+# استرجاع الثوابت ديناميكياً
 MAX_LEN = model.input_shape[0][1] + 1
-PAD, UNK, USER_ID, ASST_ID, EOS = (
-    tok.token_to_id(s)
-    for s in ["<PAD>", "<UNK>", "<|user|>", "<|assistant|>", "<EOS>"]
-)
+try:
+  PAD, UNK, USER_ID, ASST_ID, EOS = (
+      tok.token_to_id(s)
+      for s in ["<PAD>", "<UNK>", "<|user|>", "<|assistant|>", "<EOS>"]
+  )
+except:
+  PAD, UNK, USER_ID, ASST_ID, EOS = 0, 1, 3, 4, 2
 
 
-def generate_reply(prompt_ids, max_new_tokens=120, temperature=0.8, top_p=0.9):
+def generate_reply(prompt_ids, max_new_tokens=150, temperature=0.8, top_p=0.9):
   ids = list(prompt_ids)[-(MAX_LEN - 1) :]
   out = []
   for _ in range(max_new_tokens):
@@ -58,7 +83,7 @@ def generate_reply(prompt_ids, max_new_tokens=120, temperature=0.8, top_p=0.9):
       lg = lg / temperature
       p = np.exp(lg - lg.max())
       p /= p.sum()
-      if 0 < top_p < 1:  # nucleus sampling
+      if 0 < top_p < 1:
         order = np.argsort(p)[::-1]
         keep = order[
             max(1, int(np.searchsorted(np.cumsum(p[order]), top_p) + 1))
@@ -68,7 +93,7 @@ def generate_reply(prompt_ids, max_new_tokens=120, temperature=0.8, top_p=0.9):
         p = mask / mask.sum()
       nid = int(np.random.choice(len(p), p=p))
     else:
-      nid = int(lg.argmax())  # greedy
+      nid = int(lg.argmax())
 
     if nid in (PAD, EOS, USER_ID, ASST_ID):
       break
@@ -77,30 +102,38 @@ def generate_reply(prompt_ids, max_new_tokens=120, temperature=0.8, top_p=0.9):
   return tok.decode(out).strip()
 
 
-def chat(message, history=None, **kw):
+def chat(message, history=None):
   prompt = ""
   for u, a in history or []:
     prompt += f"<|user|> {u} <|assistant|> {a} <|EOS|> "
   prompt += f"<|user|> {message} <|assistant|>"
-  return generate_reply(tok.encode(prompt).ids, **kw)
+  return generate_reply(tok.encode(prompt).ids)
 
 
-@app.route("/")
-def home():
-  return "مرحباً، مساعد السيرة النبوية يعمل بنجاح!"
+# تخزين سجل المحادثات
+if "messages" not in st.session_state:
+  st.session_state.messages = []
 
+# عرض الرسائل بتنسيق أسطر متعددة
+for message in st.session_state.messages:
+  with st.chat_message(message["role"]):
+    st.markdown(message["content"])
 
-@app.route("/predict", methods=["POST"])
-def predict():
-  data = request.json
-  message = data.get("message", "")
-  history = data.get("history", None)
+# صندوق إدخال الرسائل
+if user_input := st.chat_input("اكتب رسالتك هنا..."):
+  st.session_state.messages.append({"role": "user", "content": user_input})
+  with st.chat_message("user"):
+    st.markdown(user_input)
 
-  # توليد الرد
-  reply = chat(message, history=history, temperature=0.8, top_p=0.9)
-
-  return jsonify({"response": reply})
-
-
-if __name__ == "__main__":
-  app.run(host="0.0.0.0", port=5000)
+  with st.chat_message("assistant"):
+    with st.spinner("جاري الكتابة..."):
+      history = [
+          (
+              st.session_state.messages[i]["content"],
+              st.session_state.messages[i + 1]["content"],
+          )
+          for i in range(0, len(st.session_state.messages) - 1, 2)
+      ]
+      reply = chat(user_input, history=history)
+      st.markdown(reply)
+  st.session_state.messages.append({"role": "assistant", "content": reply})
