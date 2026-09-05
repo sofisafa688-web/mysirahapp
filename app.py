@@ -32,7 +32,7 @@ st.title("📖 مساعد السيرة النبوية الذكي")
 st.write("اطرح سؤالك وسيجيبك النموذج في محادثة مستمرة ومتعددة الأسطر.")
 
 # ضع هنا اسم مستودعك على هاقينج فيس
-REPO_ID = "your-username/serah-assistant-model"
+REPO_ID = "sofisofi88/sirah-assistant-model"
 
 
 @st.cache_resource
