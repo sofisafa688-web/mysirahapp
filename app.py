@@ -39,7 +39,7 @@ REPO_ID = "sofisofi88/sirah-assistant-model"
 def load_model_and_tokenizer():
   with st.spinner("جاري تحميل المودل والتوكنايزر من Hugging Face..."):
     model_path = hf_hub_download(
-        repo_id=REPO_ID, filename="assistant_code_best.keras"
+        repo_id=REPO_ID, filename="assistant_code_model.keras"
     )
     tokenizer_path = hf_hub_download(
         repo_id=REPO_ID, filename="assistant_code_bpe_tokenizer.json"
