@@ -42,7 +42,7 @@ def load_model_and_tokenizer():
         repo_id=REPO_ID, filename="assistant_code_best.keras"
     )
     tokenizer_path = hf_hub_download(
-        repo_id=REPO_ID, filename="assistant_code_bpe_tokenizer"
+        repo_id=REPO_ID, filename="assistant_code_bpe_tokenizer.json"
     )
 
     loaded_model = tf.keras.models.load_model(model_path)
