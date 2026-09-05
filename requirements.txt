@@ -1,0 +1,6 @@
+flask
+gunicorn
+tensorflow
+huggingface_hub
+numpy
+tokenizers
