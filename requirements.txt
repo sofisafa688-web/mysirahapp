@@ -1,6 +1,5 @@
-numpy==1.26.4
+streamlit==1.38.0
 tensorflow==2.15.0
 tokenizers==0.15.2
-streamlit==1.38.0
-huggingface==hub 0.20.3
-
+numpy==1.26.4
+huggingface-hub==0.20.3
