@@ -1,6 +1,6 @@
-huggingface-hub==0.20.3
-tensorflow==2.21.0
-keras==3.15.1
-numpy==2.5.2
-tokenizers==0.23.1
+huggingface
+tensorflow
+keras
+numpy
+tokenizers
 streamlit
