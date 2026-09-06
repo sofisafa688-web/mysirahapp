@@ -61,7 +61,7 @@ PAD, UNK, USER_ID, ASST_ID, EOS = (
 )
 
 
-def generate_reply(prompt_ids, max_new_tokens=120, temperature=0.8, top_p=0.9):
+def generate_reply(prompt_ids, max_new_tokens=250, temperature=1.0, top_p=0.9):
   ids = list(prompt_ids)[-(MAX_LEN - 1) :]
   out = []
   for _ in range(max_new_tokens):
