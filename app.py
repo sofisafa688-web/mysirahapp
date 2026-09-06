@@ -1,17 +1,15 @@
-import json
-import os
-from huggingface_hub import hf_hub_download
 import numpy as np
 import streamlit as st
 import tensorflow as tf
 from tokenizers import Tokenizer
+from huggingface_hub import hf_hub_download
 
-# إعدادات الصفحة
+# --- إعدادات الصفحة ---
 st.set_page_config(
     page_title="مساعد السيرة النبوية", page_icon="📖", layout="centered"
 )
 
-# تخصيص التصميم ليشبه محادثات واتساب (فقاعات وترتيب أسطر متعددة)
+# --- تصفح التصميم ليكون كالمحادثات ---
 st.markdown(
     """
     <style>
@@ -29,17 +27,17 @@ st.markdown(
 )
 
 st.title("📖 مساعد السيرة النبوية الذكي")
-st.write("اطرح سؤالك وسيجيبك النموذج في محادثة مستمرة ومتعددة الأسطر.")
+st.write(
+    "اطرح سؤالك وسيجيبك النموذج في محادثة مستمرة ومتعددة الأسطر تماماً كما في جهازك."
+)
 
-st.title("اختبار التطبيق والرموز تلقائياً")
-
-# ضع هنا اسم مستودعك على هاقينج فيس
+# --- ضع هنا اسم مستودعك على هاجينج فيس ---
 REPO_ID = "sofisofi88/sirah-assistant-model"
 
 
 @st.cache_resource
 def load_model_and_tokenizer():
-  with st.spinner("جاري تحميل المودل والتوكنايزر من Hugging Face..."):
+  with st.spinner("جاري تحميل الموديل والتوكنايزر من Hugging Face..."):
     model_path = hf_hub_download(
         repo_id=REPO_ID, filename="assistant_code_model.keras"
     )
@@ -47,74 +45,51 @@ def load_model_and_tokenizer():
         repo_id=REPO_ID, filename="assistant_code_bpe_tokenizer.json"
     )
 
-    loaded_model = tf.keras.models.load_model(model_path)
+    loaded_model = tf.keras.models.load_model(
+        model_path, compile=False, safe_mode=False
+    )
     loaded_tok = Tokenizer.from_file(tokenizer_path)
-  return loaded_model, loaded_tok
+    return loaded_model, loaded_tok
 
 
 model, tok = load_model_and_tokenizer()
 
-
-
-
-    
-    st.subheader("🧪 نتائج اختبار الترميز")
-    
-    # 3. تطبيق كود الاختبار مباشرة وعرضه بعنوان
-    for text in ["عمر بن الخطاب", "رسول الله"]:
-        enc = tok.encode(text)
-        
-        # عرض النتيجة على شاشة موقع ستريم لايت مباشرة
-        st.markdown(f"### النص: {text}")
-        st.write(f"**Tokens:** `{enc.tokens}`")
-        st.write(f"**Decode:** `{tok.decode(enc.ids)}`")
-        st.markdown("---")
-        
-except Exception as e:
-    st.error(f"❌ حدث خطأ أثناء التحميل أو الاختبار: {e}")
-
-# استرجاع الثوابت ديناميكياً
+# --- استرجاع الثوابت تماماً مثل الكود المحلي ---
 MAX_LEN = model.input_shape[0][1] + 1
-try:
-  PAD, UNK, USER_ID, ASST_ID, EOS = (
-      tok.token_to_id(s)
-      for s in ["<PAD>", "<UNK>", "<|user|>", "<|assistant|>", "<EOS>"]
-  )
-except:
-  PAD, UNK, USER_ID, ASST_ID, EOS = 0, 1, 3, 4, 2
+PAD, UNK, USER_ID, ASST_ID, EOS = (
+    tok.token_to_id(s) for s in ["<PAD>", "<UNK>", "<|user|>", "<|assistant|>", "<EOS>"]
+)
 
 
-def generate_reply(prompt_ids, max_new_tokens=150, temperature=0.8, top_p=0.9):
+def generate_reply(prompt_ids, max_new_tokens=120, temperature=0.8, top_p=0.9):
   ids = list(prompt_ids)[-(MAX_LEN - 1) :]
   out = []
   for _ in range(max_new_tokens):
-    if len(ids) >= MAX_LEN - 1:
+    if len(ids) >= MAX_LEN:
       ids = ids[-(MAX_LEN - 1) :]
     x = np.zeros((1, MAX_LEN - 1), dtype=np.int32)
     x[0, : len(ids)] = ids
     doc_ids = np.zeros((1, MAX_LEN - 1), dtype=np.int32)
     doc_ids[0, : len(ids)] = 1
-    lg = (
-        model([x, doc_ids], training=False)
-        .numpy()[0, len(ids) - 1]
-        .astype(np.float64)
+    lg = model([x, doc_ids], training=False).numpy()[0, len(ids) - 1].astype(
+        np.float64
     )
 
     if temperature and temperature > 0:
       lg = lg / temperature
       p = np.exp(lg - lg.max())
       p /= p.sum()
-      if 0 < top_p < 1:
+      if 0 < top_p < 1:  # nucleus sampling
         order = np.argsort(p)[::-1]
         keep = order[
-            max(1, int(np.searchsorted(np.cumsum(p[order]), top_p) + 1))
+            : max(1, int(np.searchsorted(np.cumsum(p[order]), top_p) + 1))
         ]
         mask = np.zeros_like(p)
         mask[keep] = p[keep]
         p = mask / mask.sum()
       nid = int(np.random.choice(len(p), p=p))
     else:
-      nid = int(lg.argmax())
+      nid = int(lg.argmax())  # greedy
 
     if nid in (PAD, EOS, USER_ID, ASST_ID):
       break
@@ -123,24 +98,25 @@ def generate_reply(prompt_ids, max_new_tokens=150, temperature=0.8, top_p=0.9):
   return tok.decode(out).strip()
 
 
-def chat(message, history=None):
+def chat(message, history=None, **kw):
+  """history: list of (user, assistant) tuples from earlier turns."""
   prompt = ""
   for u, a in history or []:
     prompt += f"<|user|> {u} <|assistant|> {a} <|EOS|> "
   prompt += f"<|user|> {message} <|assistant|>"
-  return generate_reply(tok.encode(prompt).ids)
+  return generate_reply(tok.encode(prompt).ids, **kw)
 
 
-# تخزين سجل المحادثات
+# --- تخزين سجل المحادثات في واجهة ستريم لايت ---
 if "messages" not in st.session_state:
   st.session_state.messages = []
 
-# عرض الرسائل بتنسيق أسطر متعددة
+# عرض الرسائل السابقة
 for message in st.session_state.messages:
   with st.chat_message(message["role"]):
     st.markdown(message["content"])
 
-# صندوق إدخال الرسائل
+# استقبال رسالة المستخدم الجديدة
 if user_input := st.chat_input("اكتب رسالتك هنا..."):
   st.session_state.messages.append({"role": "user", "content": user_input})
   with st.chat_message("user"):
@@ -148,13 +124,14 @@ if user_input := st.chat_input("اكتب رسالتك هنا..."):
 
   with st.chat_message("assistant"):
     with st.spinner("جاري الكتابة..."):
-      history = [
-          (
-              st.session_state.messages[i]["content"],
-              st.session_state.messages[i + 1]["content"],
-          )
-          for i in range(0, len(st.session_state.messages) - 1, 2)
-      ]
+      # تجهيز الـ history بالشكل الذي تتوقعه دالة chat (قائمة أزواج: [ (user, assistant), ... ])
+      history = []
+      msgs = st.session_state.messages[:-1]
+      for i in range(0, len(msgs) - 1, 2):
+        if i + 1 < len(msgs):
+          history.append((msgs[i]["content"], msgs[i + 1]["content"]))
+
       reply = chat(user_input, history=history)
       st.markdown(reply)
+
   st.session_state.messages.append({"role": "assistant", "content": reply})
