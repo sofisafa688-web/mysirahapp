@@ -31,6 +31,8 @@ st.markdown(
 st.title("📖 مساعد السيرة النبوية الذكي")
 st.write("اطرح سؤالك وسيجيبك النموذج في محادثة مستمرة ومتعددة الأسطر.")
 
+st.title("اختبار التطبيق والرموز تلقائياً")
+
 # ضع هنا اسم مستودعك على هاقينج فيس
 REPO_ID = "sofisofi88/sirah-assistant-model"
 
@@ -51,6 +53,34 @@ def load_model_and_tokenizer():
 
 
 model, tok = load_model_and_tokenizer()
+
+
+
+# محاولة تحميل الملفات وإجراء الاختبار فور فتح الصفحة مباشرة
+try:
+    # 1. تحميل الـ tok من الملف (تأكد أن اسم الملف يطابق ما لديك، مثل tok.pkl)
+    with open("tok.pkl", "rb") as f:
+        tok = pickle.load(f)
+        
+    # 2. تحميل النموذج
+    model = tf.keras.models.load_model("model.keras")
+    
+    st.success("✓ تم تحميل الملفات بنجاح على السحابة!")
+    
+    st.subheader("🧪 نتائج اختبار الترميز")
+    
+    # 3. تطبيق كود الاختبار مباشرة وعرضه بعنوان
+    for text in ["عمر بن الخطاب", "رسول الله"]:
+        enc = tok.encode(text)
+        
+        # عرض النتيجة على شاشة موقع ستريم لايت مباشرة
+        st.markdown(f"### النص: {text}")
+        st.write(f"**Tokens:** `{enc.tokens}`")
+        st.write(f"**Decode:** `{tok.decode(enc.ids)}`")
+        st.markdown("---")
+        
+except Exception as e:
+    st.error(f"❌ حدث خطأ أثناء التحميل أو الاختبار: {e}")
 
 # استرجاع الثوابت ديناميكياً
 MAX_LEN = model.input_shape[0][1] + 1
