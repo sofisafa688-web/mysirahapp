@@ -1,5 +1,7 @@
-streamlit==1.38.0
-tensorflow==2.15.0
-tokenizers==0.15.2
-numpy==1.26.4
 huggingface-hub==0.20.3
+tensorflow==2.21.0
+keras==3.15.1
+numpy==2.5.2
+tokenizers==0.23.1
+protobuf==7.36.1
+streamlit
