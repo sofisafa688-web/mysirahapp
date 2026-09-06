@@ -56,16 +56,7 @@ model, tok = load_model_and_tokenizer()
 
 
 
-# محاولة تحميل الملفات وإجراء الاختبار فور فتح الصفحة مباشرة
-try:
-    # 1. تحميل الـ tok من الملف (تأكد أن اسم الملف يطابق ما لديك، مثل tok.pkl)
-    with open("tok.pkl", "rb") as f:
-        tok = pickle.load(f)
-        
-    # 2. تحميل النموذج
-    model = tf.keras.models.load_model("model.keras")
-    
-    st.success("✓ تم تحميل الملفات بنجاح على السحابة!")
+
     
     st.subheader("🧪 نتائج اختبار الترميز")
     
